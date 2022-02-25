@@ -1,0 +1,234 @@
+NOTES
+
+
+master loop version Z 19 feb 2022.dig
+=====================================
+
+Organisation of the parts:
+
+
+
+    [master loop version Z 19 feb 2022.dig]
+	|		
+	|		
+    |-----[3 x 10 bit multiply version E 19 feb 2022.dig] (purple)
+	|		
+	|		
+    |-----[6 x 10 bit multiply version K 19 feb 2022.dig] (yellow)
+	|		
+	|		
+    |-----[15 bit div 11 bit blocked version E 05 feb 2022.dig] (orange)
+	|		
+    |			
+    |----------[15 bit div 11 bit triple block version B 05 feb 2022.dig] (teal)
+	|		
+    |
+    |-----[6 bit div ten version I 06 feb 2022.dig] (green)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Note 1: Logic clears sub-clock at appropriate point, depending on operation,
+hence number of sub-clock cycles tailored to suit each operation, avoiding 
+wasted clock cycles after operation completed. 7475 chips are AND-NOR gates;
+these feed the 7420 dual 4-input NAND, forming the required OR logic (i.e. 
+we could do this as AND-OR). One hald of the 7420 is used to invert the HI to
+reset sub-clock line, prior to OR-ing with the rest.
+
+
+Note 2: 74132 quad NAND Scmitt is intended for debounce; need appropriate
+capacitor etc in a real circuit. Debounce is for single step button.
+
+
+Note 3: Reset sub-clock via manual button or Y8 off 74154 decoder. ENP input to
+74161 sub-clock counter is low when STOP/RESET. PAUSE swicth (active high) is
+inverted and takes 74161 ENT line low to pause (not reset) the sub-clock.
+
+
+Note 4: 74161 (operation) counter can be loaded with operation number 0 through 15;
+intended for debugging purposes, so that a specific operation can be executed,
+as opposed to running through all operations. LOAD button pulls pin 9 low.
+
+
+Note 5: Sub-clock runs 0 through 8, clearing on 9. Note clock cycle 0 is a dead
+cycle; only decoded outputs (from 74154) Y1 through Y7 used in operation execution.
+Subclock is reset off Y8.
+
+
+Note 6: 7474 dual D-flip flop holds l_init (logical) value. This gets set 
+to T whilst master loop is reset.
+
+
+Note 7: 74160 maintains j_digit value. Takes the value 1,2,3 or 0.
+Counter provides a simple way of implementing:
+
+j_digit = j_digit + 1
+
+and
+
+j_digit = 0
+
+This counter resets when its outout is 4 - via the 7410 triple NAND
+gate.
+
+
+
+Note 8: each digit (blue seven segment displays) has its own 74160
+decimal counter, running from 0 through 9. Together, these counters
+implement the array j_pi, which wil contain three digits of pi at 
+a time. The one of three digits is selected according to the value 
+of the LHS counter. The currently selected digit can be assigned the
+value present at kpi (6 bits), i.e.
+
+j_pi(j_digit) = kpi
+
+Using counters allows a digit to be incremented, i.e. 
+
+j_pi(j_digit) = j_pi(j_digit) + 1
+
+(necessary if a carry was flagged).
+
+
+Note 9: The 3-off 74191 binary up/down counters hold the value of b; this
+is preset to the user-specified value (via DIP switches) or via the 7402
+NOR gate; latter allows resetting of b = 888 (for example), just before
+end of the do loop.
+
+
+Note 10: The 3-off 74181 ALUs with 74182 look ahead carry generator are used
+to add (or subtract) user-specified value alpha from 2 * b. For example, 
+2 * b - 1 is required for regular computation of pi, so alpha is set to 1 and
+subtraction specified. Setting alpha = 4 with addition specified will yield
+ln(4)-1 = 0.38629436...
+
+
+Note 11: The 4-off 74181 ALUs with 74182 look ahead carry generator are used
+to compute either
+
+d = d + BETA
+
+or
+
+d = d + a(b+1) * 10,
+
+depending on the L_INIT flag. The times (decimal) ten is realised with the 
+3-off 74283 chips (11 bit mult ten version I 03 oct 2021.dig part).
+
+
+Note 12: The 74260 dual 5-input NOR plus 7400 NAND detect yield HI output
+when b not equal to 0; this is used with OP#4 to reset the OP counter
+so as to implement:
+
+if (b != 0) cycle.
+
+
+Note 13: Three-state bus transceivers allow one of the following to be
+presented to the latch (2-off 74373) that holds the current value of d:
+
+d + BETA or d + a(b) * 10
+
+d * b
+
+d % g
+
+i.e. one of the above gets assigned to d.
+
+Note 14: e + d / 10 computed. The 7485 checks for kpi = 10 (decimal);
+the output is the l_carry flag. Note that pin 3 (P=Q) of 7485 must be
+at logic 1.
+
+
+Note 15: Register d is now reset to zero when machine is reset; this 
+gives a repeatable set of values for registers, which can be readily
+compared with expected values.
+
+
+Note 16: g = b * GAMMA + ALPHA; this is more general than the 
+g = 2b - 1 needed for the calculation of pi, and allows many more
+interesting things to be computed. The 3 x 10 bit multiply allows
+b to be multiplied by 0 through 7, prior to the 74181 ALUs. The latter
+deal with addition (or subtraction) of ALPHA.
+
+Note that since b is 10 bits and GAMMA is 3 bits (potentially), the 
+product can obviously exceed the 11 bits originally assumed for g. In 
+fact 12 bits are now fed into the ALUs, although only 11 bits from the
+ALU outputs are used.
+
+For generality, the 74181s have their control inputs S0 through S3 taken
+to switches; this allows user to configure these ALUs to add or subtract 
+ALPHA onto b (or 2*b), or, just ignore ALPHA and yield b (for 
+calculation of e, for example).
+
+
+Note 17: Logic to disable OP#1 (d = d*b). Subclock is reset on 
+sub-clock 0 in this case. Needed when computing e (2.7128...).
+
+
+Note 18: Tow-off 74273 D-type flip flops latch the three digits of pi;
+this happens only if j_digit = 3, and happens when b is set to 888 (i.e.
+at end of do loop).
+
+
+Note 19: Display ripple: 7474 flip flop is set (armed) when j_digit = 1;
+when the new triplet of digits is latched by the 74273 the flip flop is
+clocked and the 74161 counter runs at the local clock frequency (i.e.
+clock for display ripple use). The decoded output (74238) enables
+7477 4-bit D latches in a ripple fashion, starting with left-most triplet
+of digits, and ending (Y6) with latching the last triplet off the 74273.
+The flip flop is reset on Y7, thus stopping the display ripple.
+
+
+Note 20: 7442 decoder feeds 7405 open collector inverter to drive 
+appropriate decimal point, one for each block of three output digits.
+Hence decimal point moves across set of eighteen display digits.
+
+
+Note 21: Seven segment displays driven from 74248 chips. Other varieties
+are available (e.g. active low, open collector). Anticipated that some
+experimentaion needed to get a nice brigtness level, also need to choose
+specific type to suit common cathod or anode displays.
+
+
+Note 22: Logic to detect if g = 0; if this is the case, g is set equal to 
+1 (i.e. bit 1 of g is set). This avoids subsequent possible divide by zero,
+and is useful for example when ALPHA = -2 (BETA = 10), giving 1.99999...
+
+
+Note 23: Logic to drive LEDs indicating g = g * GAMMA + ALPHA or
+g = g * GAMMA - ALPHA.
+
+Note 24: 74161 hex counter counts number of display ripples, resetting at
+every sixth ripple - hence output 1Y of the 7400 goes low when number of
+triplets output is 6 (i.e. 18 digits), 12 (i.e. 36 digits) and so on. Output
+2Y goes high. This triggers D latch (74173), but only if input DE1 is low.
+D latch output Q0 going high pauses the machine, via interconnect D22. The
+RESUME button resets the D latch, taking D22 low and computation resumes.
+The separate PAUSE switch can be used to pause computation at any time; the
+7400 gate is used as an OR gate for this.
+
+
+Note 25: External bus: intention is that this gives enough connectivity to
+control some sort of three digit printer. BCD for the three digits of the
+final triplet are present. When 'ripple display' goes high, digits can be
+printed. Also allows printer to pause computation (i.e. set bus pin #15 hi).
+
+
+Note 26: Example of printer side logic. Ripple display in going high indicates
+we are ready to print the triplet of digits; this sets bus pin #15 hi, which
+pauses computation. When printing is complete bus pin #15 goes low, and 
+computation resumes.
+
+
+
+
